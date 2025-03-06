@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, Text, CardHeader, Flex, Heading } from "@chakra-ui/react";
-
     
 interface Shoutout {
     recipient: string;
@@ -10,6 +9,7 @@ interface Shoutout {
 
 const ShoutoutReader: React.FC = () => {
     const [shoutouts, setShoutouts] = useState<Shoutout[]>([]);
+    const [hidden, setHidden] = useState<Array<boolean>>([]);
 
     const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -22,11 +22,27 @@ const ShoutoutReader: React.FC = () => {
             reader.readAsText(file);
         }
     };
-    
+
+    const removeNewlinesInQuotes = (input: string): string => {
+        let res = "";
+        let i = false;
+        for (let x = 0; x < input.length; x++) {
+            if(input[x] == "\""){
+                i = !i;
+            }
+            if(input[x] == "\n" && i){
+                res += '~';
+                continue;
+            }
+            res += input[x];
+        }
+        return res;
+    }
+
     const handleLines = (line: string) => {
         if(line.split(",").length == 4) {
             const [, recipient, message, sender] = line.split(",");
-            return { recipient, message, sender };
+            return { recipient: recipient.replaceAll("\"", ""), message: message.replaceAll("\"", ""), sender: sender.replaceAll("\"", "") };
         }
         const res = ["", "", ""];
         line = line.split(",").slice(1).join(",");
@@ -43,18 +59,23 @@ const ShoutoutReader: React.FC = () => {
             }
             res[j] += line[x];
         }
-        return { recipient: res[0], message: res[1], sender: res[2] };
+        return { recipient: res[0].replaceAll("\"", ""), message: res[1].replaceAll("\"", ""), sender: res[2].replaceAll("\"", "") };
 
     }
 
     const parseCSV = (text: string) => {
+        text = removeNewlinesInQuotes(text);
         const rows = text.split("\n").slice(1);
-        const data: Shoutout[] = rows.map(row => {
+        const res = rows.map(row => row.replaceAll("~", "\n"));
+        const data: Shoutout[] = res.map(row => {
             return handleLines(row);
         }).filter(row => row.recipient && row.message && row.sender);
-        console.log(data);
         setShoutouts(data);
+        setHidden(Array(data.length).fill(false));
     };
+
+    useEffect(() => {
+    }, [shoutouts, hidden]);
 
     return (
         <>
@@ -75,14 +96,14 @@ const ShoutoutReader: React.FC = () => {
                 }
                 <Flex wrap="wrap" gap={4} justify="center" flexDirection={"row"} marginTop={50}>
                     {shoutouts.map((shoutout, index) => (
-                        <Card key={index} className="p-4 shadow-lg rounded-2xl" maxW = "sm" minW = "sm" border={"2px"} borderColor={"#a100ff"} borderRadius={"2xl"} opacity={"90%"}>
-                            <CardHeader className="text-xl font-bold mb-2" color='#5000ff' fontWeight={"bold"} fontSize={"xl"} gap={2}>
+                        <Card key={index} className="p-4 shadow-lg rounded-2xl" maxW = "sm" minW = "sm" border={"2px"} borderColor={"#a100ff"} borderRadius={"2xl"} opacity={"90%"} onClick={() => setHidden(hidden.map((val, i) => i === index ? !val : val))}>
+                            {hidden[index] || <><CardHeader className="text-xl font-bold mb-2" color='#5000ff' fontWeight={"bold"} fontSize={"xl"} gap={2}>
                                 {shoutout.recipient}
                             </CardHeader>
                             <Flex flexDirection={"column"} gap={4} alignItems={"space-between"} justifyContent={"space-between"} minH={40} margin={4}>
                                 <Text>{shoutout.message}</Text>
                                 <Text fontSize="xl" fontWeight={"bold"} color="#5000ff">-{shoutout.sender != "\r" ? shoutout.sender : 'Anonymous'}</Text>
-                            </Flex>
+                            </Flex></>}
                         </Card>
                     ))}
                 </Flex>
